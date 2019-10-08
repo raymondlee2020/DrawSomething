@@ -6,19 +6,11 @@
 </template>
 
 <script>
+import { mapGetters } from "vuex";
 export default {
   name: "GreetBar",
-  props: {},
   computed: {
-    isConnect: function() {
-      return this.$store.state.isConnect;
-    },
-    userName: function() {
-      return this.$store.state.userName;
-    },
-    onlineCount: function() {
-      return this.$store.state.onlineCount;
-    }
+    ...mapGetters(["isConnect", "userName", "onlineCount"])
   }
 };
 </script>
