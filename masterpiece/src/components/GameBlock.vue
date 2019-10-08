@@ -77,9 +77,6 @@ export default {
         this.isMouseDown = true;
         this.currentX = e.pageX - this.canvas.offsetLeft;
         this.currentY = e.pageY - this.canvas.offsetTop;
-        console.log(e.pageX + " " +  e.pageY);
-        console.log(this.canvas.offsetLeft + " " +  this.canvas.offsetTop);
-        console.log(this.currentX + " " +  this.currentY);
         let point = {
           x: this.currentX,
           y: this.currentY
@@ -100,8 +97,8 @@ export default {
       }
     },
     mouseMove: function(e) {
+      // 這邊有確認滑鼠點擊不錯，但沒處理超出canvas框框的時候怎辦
       if (this.isMouseDown && this.$store.state.isDrawer) {
-        //console.log(e.offsetX, e.offsetY);
         this.canvasContext.beginPath();
         this.canvasContext.lineJoin = "round";
         this.canvasContext.moveTo(this.currentX, this.currentY);
@@ -127,7 +124,6 @@ export default {
       this.isMouseDown = true;
       this.currentX = point.x;
       this.currentY = point.y;
-      //console.log(this.currentX, this.currentY);
     },
     mouseUp: function() {
       this.isMouseDown = false;
@@ -138,7 +134,6 @@ export default {
     mouseMove: function(point) {
       point = JSON.parse(point);
       if (this.isMouseDown) {
-        //console.log(point.x, point.y);
         this.canvasContext.beginPath();
         this.canvasContext.lineJoin = "round";
         this.canvasContext.moveTo(this.currentX, this.currentY);

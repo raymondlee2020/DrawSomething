@@ -5,19 +5,39 @@ Vue.use(Vuex);
 
 const vuex = new Vuex.Store({
     state: {
-        isConnect: 'Unconnected',
-        onlineCount: '',
+        // 這邊用boolean比較適合
+        isConnect: false,
+        // Count用Number
+        onlineCount: 0,
         userName: '',
         opponentName: '',
         roomId: '',
         isDrawer: false
     },
+    /**
+     * 有用到就要寫getters
+     */
     getters: {
-        // checkLog: state => state.isLogin
+        isConnect: state => {
+            return state.isConnect ? 'Connected' : 'Disconnected'
+        },
+        userName: state => {
+            return state.userName
+        },
+        onlineCount: state => {
+            return state.onlineCount
+        },
     },
     mutations: {
         connect(state) {
-            state.isConnect = 'Connected';
+            state.isConnect = true;
+        },
+        /**
+         * 應該要有這個事件
+         * @param {*} state 
+         */
+        disconnect(state) {
+            state.isConnect = false;
         },
         login(state, name) {
             state.userName = name;
@@ -34,7 +54,7 @@ const vuex = new Vuex.Store({
             }
         },
         setOpponent(state, name) {
-            if (state.userName != name ) {
+            if (state.userName != name) {
                 state.opponentName = name;
             }
         },
