@@ -1,15 +1,17 @@
 <template>
   <div id="loginblock">
     <h1>Masterpiece</h1>
-    <form>
-      <input type="text" id="nameinput" v-model="userName" placeholder="Your name." />
+    <div>
+      <input type="text" id="nameinput" v-model="userName" placeholder="Your name." @keyup.13="login"/>
       &nbsp;
-      <input type="submit" value="Let's Draw！" @click="login"/>
-    </form>
+      <input type="button" value="Let's Draw！" @click="login"/>
+    </div>
   </div>
 </template>
 
 <script>
+import {mapMutations} from "vuex"
+
 export default {
   name: "LoginBlock",
   data() {
@@ -18,10 +20,12 @@ export default {
     }
   },
   methods: {
+    ...mapMutations(['setUserName']),
+    // Deal with LOGIN action from user.
     login: function() {
-      this.$router.push("/wait");
-      this.$store.commit('login', this.userName);
+      this.setUserName(this.userName);
       this.$socket.emit('login', this.userName);
+      this.$router.push("/wait");
     }
   }
 };

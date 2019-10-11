@@ -5,21 +5,24 @@ Vue.use(Vuex);
 
 const vuex = new Vuex.Store({
     state: {
-        isConnect: 'Unconnected',
-        onlineCount: '',
+        isConnect: false,
+        onlineCount: 0,
         userName: '',
         opponentName: '',
         roomId: '',
         isDrawer: false
     },
     getters: {
-        // checkLog: state => state.isLogin
+        isConnect: state => state.isConnect ? 'Connected':'Unconnected'
     },
     mutations: {
         connect(state) {
-            state.isConnect = 'Connected';
+            state.isConnect = true;
         },
-        login(state, name) {
+        disconnect(state) {
+            state.isConnect = false;
+        },
+        setUserName(state, name) {
             state.userName = name;
         },
         refreshOnlineCount(state, value) {

@@ -1,31 +1,33 @@
 let onlineCount = 0;
 let quizList = ['APPLE', 'BANANA', 'CAT', 'NTUST', 'BATALK'];
 const asyncRedis = require("async-redis");
-const client = asyncRedis.createClient(); // this creates a new client
+const client = asyncRedis.createClient();
 
 client.on('connect', () => {
     client.flushdb();
     client.set('roomId', '1');
-    console.log('Redis client connected');
 });
 
 module.exports = function (io) {
     io.on('connection', socket => {
 
+        // Update online count and broadcast to all users.
         onlineCount++;
         io.emit('refreshOnlineCount', onlineCount);
 
+        // Create a room for user or match user to a room.
         socket.on('login', async (userName) => {
+            // Check whether the idle room is existed.
             if (await client.hlen('idleRoomList') == 0) {
-                console.log('create');
+                // Create new room and record the roomID for user.
                 let newRoomId = await client.get('roomId');
+                let newRoom = '{"id": ' + newRoomId + ', "players": [{"name": "' + userName + '", "socketId": "' + socket.id + '", "status": "wait"}], "quiz": "", "quizNo": "0", "drawer": "-1", "timestamp": ""}';
                 await socket.join(newRoomId);
                 await client.incrby('roomId', 1);
-                let newRoom = '{"id": ' + newRoomId + ', "players": [{"name": "' + userName + '", "socketId": "' + socket.id + '", "status": "wait"}], "quiz": "", "quizNo": "0", "drawer": "-1", "timestamp": ""}';
                 await client.hset('idleRoomList', newRoomId, newRoom);
                 await client.set(socket.id, newRoomId);
             } else {
-                console.log('enter');
+                // Join the idle room and broadcast gotoGameUI event in the room.
                 let findRoomId = (await client.hkeys('idleRoomList'))[0];
                 let findRoomString = await client.hget('idleRoomList', findRoomId);
                 let findRoom = JSON.parse(findRoomString);
@@ -38,6 +40,14 @@ module.exports = function (io) {
             }
         })
 
+        // Clear the room when user CANCEL LOGIN action.
+        socket.on('cancel', async () => {
+            let roomId = await client.get(socket.id);
+            await client.del(socket.id);
+            await client.hdel('idleRoomList', roomId);
+        })
+
+        // Update user status to READY when the page is loaded completely.
         socket.on('getReady', async (roomId) => {
             let roomInfo = JSON.parse(await client.hget('fullRoomList', roomId));
             let readyPlayer = (roomInfo.players).find((player) => {
@@ -48,6 +58,7 @@ module.exports = function (io) {
                 return player.status == 'ready';
             })
             await client.hset('fullRoomList', roomId, JSON.stringify(roomInfo));
+            // Start the game when all the users is ready.
             if (readyPlayers.length == 2) {
                 let quiz = quizList[Math.floor(Math.random() * 5)];
                 let timestamp = Date.now();
@@ -64,6 +75,7 @@ module.exports = function (io) {
             }
         })
 
+        // Update user status to END when time's up.
         socket.on('gameEnd', async (roomId) => {
             let roomInfo = JSON.parse(await client.hget('fullRoomList', roomId));
             let endPlayer = (roomInfo.players).find((player) => {
@@ -74,18 +86,18 @@ module.exports = function (io) {
             let endPlayers = (roomInfo.players).filter((player) => {
                 return player.status == 'end';
             })
+            // Broadcast answer to all the users in the room.
             if (endPlayers.length == 2 && roomInfo.quizNo == 4) {
                 io.sockets.in(roomId).emit('wholeGameEnd', roomInfo.quiz);
                 await client.del(socket.id);
-                await client.hdel(roomId);
+                await client.hdel('fullRoomList', roomId);
             } else if (endPlayers.length == 2) {
                 io.sockets.in(roomId).emit('gameEnd', roomInfo.quiz);
             }
         })
-
+        /* Syncronize the canvas START */
         socket.on('mouseDown', async (point) => {
             let roomId = await client.get(socket.id);
-            console.log(roomId);
             socket.to(roomId).broadcast.emit('mouseDown', point);
         })
 
@@ -103,11 +115,12 @@ module.exports = function (io) {
             let roomId = await client.get(socket.id);
             socket.to(roomId).broadcast.emit('mouseMove', point);
         })
-
+        /* Syncronize the canvas END */
+        // Check whether the message is equal to answer.
         socket.on('guess', async (guessMsg) => {
             let roomId = await client.get(socket.id);
             let roomInfo = JSON.parse(await client.hget('fullRoomList', roomId));
-            if (guessMsg == roomInfo.quiz) {
+            if (guessMsg.toUpperCase() == (roomInfo.quiz).toUpperCase()) {
                 (roomInfo.players).forEach((e) => {
                     e.status = 'end';
                 })
@@ -117,26 +130,25 @@ module.exports = function (io) {
                 if (roomInfo.quizNo == 4) {
                     io.sockets.in(roomId).emit('wholeGameEnd', roomInfo.quiz);
                     await client.del(socket.id);
-                    await client.hdel(roomId);
+                    await client.hdel('fullRoomList', roomId);
                 }
             }
         })
-
+        // Syncronize the message block.
         socket.on('onMessage', (messageInfo) => {
             messageInfo = JSON.parse(messageInfo);
             socket.to(messageInfo.roomId).broadcast.emit('onMessage', messageInfo.message);
         })
-
+        // Clear the user data.
         socket.on('disconnect', async () => {
             onlineCount--;
             io.emit('refreshOnlineCount', onlineCount);
             let roomId = await client.get(socket.id);
-            await client.del(socket.id);
-            await client.hdel(roomId);
+            if (roomId != null) {
+                await client.del(socket.id);
+                await client.hdel('fullRoomList', roomId);
+                io.sockets.in(roomId).emit('otherUserDisconnect');
+            }
         })
     });
 }
-
-// waitUser {name: , socketId: }
-// roomList
-// roomId: {players: [user, user], quiz: , timestamp}

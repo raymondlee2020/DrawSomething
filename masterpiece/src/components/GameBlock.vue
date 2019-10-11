@@ -39,13 +39,12 @@
 </template>
 
 <script>
+import {mapState, mapMutations} from "vuex";
+
 export default {
   name: "GameBlock",
   data() {
     return {
-      userName: "",
-      leftUserName: this.$store.state.userName,
-      rightUserName: this.$store.state.opponentName,
       roomText: "",
       roomMessage: "",
       canvas: null,
@@ -58,12 +57,23 @@ export default {
       isDrawerMessage: ""
     };
   },
+  computed: {
+    ...mapState({
+      roomId: 'roomId',
+      userName: 'userName',
+      isDrawer: 'isDrawer',
+      leftUserName: 'userName',
+      rightUserName: 'opponentName',
+    })
+  },
   methods: {
+    ...mapMutations(['setIsDrawer']),
+    // Deal with SEND MESSAGE action from user.
     onMessage: function() {
-      if (!this.$store.state.isDrawer) {
-        let message = this.$store.state.userName + ": " + this.roomText + "\n";
+      if (!this.isDrawer) {
+        let message = this.userName + ": " + this.roomText + "\n";
         let messageInfo = {
-          roomId: this.$store.state.roomId,
+          roomId: this.roomId,
           message: message
         };
         this.$socket.emit("onMessage", JSON.stringify(messageInfo));
@@ -72,14 +82,12 @@ export default {
         this.roomText = "";
       }
     },
+    // Deal with MOUSEDOWN IN CANVAS action from user.
     mouseDown: function(e) {
-      if (this.$store.state.isDrawer) {
+      if (this.isDrawer) {
         this.isMouseDown = true;
         this.currentX = e.pageX - this.canvas.offsetLeft;
         this.currentY = e.pageY - this.canvas.offsetTop;
-        console.log(e.pageX + " " +  e.pageY);
-        console.log(this.canvas.offsetLeft + " " +  this.canvas.offsetTop);
-        console.log(this.currentX + " " +  this.currentY);
         let point = {
           x: this.currentX,
           y: this.currentY
@@ -87,21 +95,23 @@ export default {
         this.$socket.emit("mouseDown", JSON.stringify(point));
       }
     },
+    // Deal with MOUSEUP IN CANVAS action from user.
     mouseUp: function() {
-      if (this.$store.state.isDrawer) {
+      if (this.isDrawer) {
         this.isMouseDown = false;
         this.$socket.emit("mouseUp");
       }
     },
+    // Deal with MOUSELEAVE IN CANVAS action from user.
     mouseLeave: function() {
-      if (this.$store.state.isDrawer) {
+      if (this.isDrawer) {
       this.isMouseDown = false;
       this.$socket.emit("mouseLeave");
       }
     },
+    // Deal with MOUSEMOVE IN CANVAS action from user.
     mouseMove: function(e) {
-      if (this.isMouseDown && this.$store.state.isDrawer) {
-        //console.log(e.offsetX, e.offsetY);
+      if (this.isMouseDown && this.isDrawer) {
         this.canvasContext.beginPath();
         this.canvasContext.lineJoin = "round";
         this.canvasContext.moveTo(this.currentX, this.currentY);
@@ -119,15 +129,16 @@ export default {
     }
   },
   sockets: {
+    // Syncronize the message block.
     onMessage: function(value) {
       this.roomMessage += value;
     },
+    /* Syncronize the canvas START */
     mouseDown: function(point) {
       point = JSON.parse(point);
       this.isMouseDown = true;
       this.currentX = point.x;
       this.currentY = point.y;
-      //console.log(this.currentX, this.currentY);
     },
     mouseUp: function() {
       this.isMouseDown = false;
@@ -138,7 +149,6 @@ export default {
     mouseMove: function(point) {
       point = JSON.parse(point);
       if (this.isMouseDown) {
-        //console.log(point.x, point.y);
         this.canvasContext.beginPath();
         this.canvasContext.lineJoin = "round";
         this.canvasContext.moveTo(this.currentX, this.currentY);
@@ -149,40 +159,47 @@ export default {
         this.currentY = point.y;
       }
     },
+    /* Syncronize the canvas END */
+    // Set timer for new game.
     gameStart: function(timestamp) {
       this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.guessTime = Math.floor((60000 - (Date.now() - timestamp)) / 1000);
+      this.guessTime = Math.floor((10000 - (Date.now() - timestamp)) / 1000);
       let that = this;
       this.timer = setInterval(() => {
         if (that.guessTime != 0) {
           that.guessTime--;
         } else {
+          that.$socket.emit("gameEnd", that.roomId);
           clearInterval(that.timer);
-          that.$socket.emit("gameEnd", that.$store.state.roomId);
         }
       }, 1000);
     },
+    // Announce the answer.
     gameEnd: function(answer) {
       clearInterval(this.timer);
       this.isDrawerMessage = "";
       this.guessTime = 0;
-      this.$store.commit("setIsDrawer", false);
+      this.setIsDrawer(false);
       this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.canvasContext.fillText("The answer is " + answer, 100, 60);
       let that = this;
       setTimeout(function() {
-        that.$socket.emit("getReady", that.$store.state.roomId);
+        that.$socket.emit("getReady", that.roomId);
       }, 3000);
     },
+    // Update isDrawer status.
     isDrawer: function() {
-      this.$store.commit("setIsDrawer", true);
+      this.setIsDrawer(true);
       this.isDrawerMessage = "Is Your Turn To Draw";
     },
+    // Print message when the user gets the answer. 
     correctGuess: function() {
       this.roomMessage += "Congratulation！ You get the correct answer！\n";
     },
+    // Announce the game end.
     wholeGameEnd: function(answer) {
       clearInterval(this.timer);
+      this.setIsDrawer(false);
       this.isDrawerMessage = "";
       this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.canvasContext.fillText("The answer is " + answer, 100, 60);
@@ -191,13 +208,26 @@ export default {
       setTimeout(function() {
         that.$router.push("/login");
       }, 5000);
+    },
+    // Direct to login page when other user disconnect.
+    otherUserDisconnect: function() {
+      clearInterval(this.timer);
+      this.setIsDrawer(false);
+      this.isDrawerMessage = "";
+      this.canvasContext.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.canvasContext.fillText("Other User Disconnect", 100, 60);
+      let that = this;
+      setTimeout(function() {
+        that.$router.push("/login");
+      }, 3000);
     }
   },
+  // Init canvasContext for the page.
   mounted() {
     this.canvas = this.$refs.canvas;
     let ctx = this.canvas.getContext("2d");
     this.canvasContext = ctx;
-    this.$socket.emit("getReady", this.$store.state.roomId);
+    this.$socket.emit("getReady", this.roomId);
   }
 };
 </script>

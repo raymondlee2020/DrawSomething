@@ -7,22 +7,29 @@
 
 <script>
 import GreetBar from "@/components/GreetBar.vue";
+import {mapMutations} from "vuex"
 
 export default {
   name: "app",
   components: {
     GreetBar
   },
+  methods: {
+    ...mapMutations(["connect", "disconnect", "refreshOnlineCount"])
+  },
   sockets: {
+    // Update socket-connected status.
     connect: function() {
-      this.$store.commit('connect');
-      console.log('Connect Success');
+      this.connect();
     },
+    // Update online count.
     refreshOnlineCount: function(value) {
-      this.$store.commit('refreshOnlineCount', value);
+      this.refreshOnlineCount(value);
     },
+    // Update socket-connected status.
     disconnect: function() {
-      console.log('Disconnect');
+      this.disconnect();
+      this.$router.push('/');
     }
   }
 };
